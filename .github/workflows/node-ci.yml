@@ -1,0 +1,86 @@
+---
+name: CI (Node)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        description: Node.js version to use
+        default: latest
+      build:
+        required: false
+        type: boolean
+        description: Run `npm run build` before tests
+        default: false
+      test:
+        required: false
+        type: boolean
+        description: Run `node --test` or `npm run test-script`
+        default: false
+      test-script:
+        required: false
+        type: string
+        description: Run `npm run test-script`, if not set, Run `node --test`
+        default: ""
+      codecov-upload:
+        required: false
+        type: boolean
+        description: Generate a coverage report when tests are run and upload it to Codecov
+        default: false
+      codecov-upload-file:
+        required: false
+        type: string
+        description: File path of the coverage report to upload to Codecov
+        default: ./coverage/lcov.info
+      lint:
+        required: false
+        type: boolean
+        description: run `bun run lint` after tests
+        default: false
+
+jobs:
+  tests-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        if: inputs.build == true
+        run: npm run build
+
+      - name: Run tests
+        if: inputs.test == true
+        run: |
+          script="${{ inputs.test-script }}"
+          if [ -n "$script" ]; then
+            npm run "$script"
+          else
+            node --test
+          fi
+
+      - name: Upload coverage to Codecov
+        if: inputs.codecov-upload == true
+        uses: codecov/codecov-action@v5
+        with:
+          files: ${{ inputs.codecov-upload-file }}
+          use_oidc: true
+
+      - name: Lint
+        if: inputs.lint == true
+        run: npm run lint

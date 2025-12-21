@@ -1,0 +1,86 @@
+---
+name: CI (Bun)
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        required: false
+        type: string
+        description: Bun version to use
+        default: latest
+      build:
+        required: false
+        type: boolean
+        description: Run `bun run build` before tests
+        default: false
+      test:
+        required: false
+        type: boolean
+        description: Run `bun test` or `bun run test-script`
+        default: false
+      test-script:
+        required: false
+        type: string
+        description: Run `bun run test-script`, if not set, Run `bun test`
+        default: ""
+      codecov-upload:
+        required: false
+        type: boolean
+        description: Generate a coverage report when tests are run and upload it to Codecov
+        default: false
+      codecov-upload-file:
+        required: false
+        type: string
+        description: File path of the coverage report to upload to Codecov
+        default: ./coverage/lcov.info
+      lint:
+        required: false
+        type: boolean
+        description: run `bun run lint` after tests
+        default: false
+
+jobs:
+  tests-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun ${{ inputs.bun-version }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "bun.lock" ]; then
+            bun ci
+          else
+            bun install
+          fi
+
+      - name: Build
+        if: inputs.build == true
+        run: bun run build
+
+      - name: Run tests
+        if: inputs.test == true
+        run: |
+          script="${{ inputs.test-script }}"
+          if [ -n "$script" ]; then
+            bun run "$script"
+          else
+            bun test
+          fi
+
+      - name: Upload coverage to Codecov
+        if: inputs.codecov-upload == true
+        uses: codecov/codecov-action@v5
+        with:
+          files: ${{ inputs.codecov-upload-file }}
+          use_oidc: true
+
+      - name: Lint
+        if: inputs.lint == true
+        run: bun run lint

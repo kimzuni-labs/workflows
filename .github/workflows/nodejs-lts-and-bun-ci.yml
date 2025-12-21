@@ -1,0 +1,69 @@
+---
+name: CI (Node.js LTS and Bun)
+
+on:
+  workflow_call:
+    inputs:
+      build:
+        required: false
+        type: boolean
+        default: false
+      node-test:
+        required: false
+        type: boolean
+        default: true
+      node-test-script:
+        required: false
+        type: string
+        default: "test:all"
+      bun-test:
+        required: false
+        type: boolean
+        default: true
+      bun-test-script:
+        required: false
+        type: string
+        default: "test:coverage"
+      codecov-upload:
+        required: false
+        type: boolean
+        description: only bun
+        default: true
+      codecov-upload-file:
+        required: false
+        type: string
+        description: only bun
+        default: ./coverage/lcov.info
+      lint:
+        required: false
+        type: boolean
+        description: only bun
+        default: true
+
+jobs:
+  node-ci:
+    strategy:
+      matrix:
+        version:
+          - 20
+          - 22
+          - 24
+    uses: ./.github/workflows/node-ci.yml
+    with:
+      node-version: ${{ matrix.version }}
+      build: ${{ inputs.build }}
+      test: ${{ inputs.node-test }}
+      test-script: ${{ inputs.node-test-script }}
+      lint: false
+  bun-ci:
+    if: >
+      github.event_name != 'pull_request'
+      || github.event.pull_request.draft == false
+    uses: ./.github/workflows/bun-ci.yml
+    with:
+      build: ${{ inputs.build }}
+      test: ${{ inputs.bun-test }}
+      test-script: ${{ inputs.bun-test-script }}
+      codecov-upload: ${{ inputs.codecov-upload }}
+      codecov-upload-file: ${{ inputs.codecov-upload-file }}
+      lint: ${{ inputs.lint }}
