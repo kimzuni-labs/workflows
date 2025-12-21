@@ -1,0 +1,92 @@
+---
+name: CI (Node)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        description: Node.js version to use
+        default: latest
+      working-directory:
+        required: false
+        type: string
+        default: .
+      build:
+        required: false
+        type: boolean
+        description: Run `npm run build` before tests
+        default: false
+      test-mode:
+        required: false
+        type: string
+        description: |
+          Test command to run
+          - none/false: Do not run tests
+          - unit: `node --test`
+          - script: `npm run test`
+          - all: `npm run test:all`
+        default: false
+      lint:
+        required: false
+        type: boolean
+        description: run `bun run lint` after tests
+        default: false
+
+jobs:
+  tests-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        if: inputs.build == true
+        run: npm run build
+
+      - name: Run tests
+        if: inputs.test-mode != false && inputs.test-mode != 'none'
+        run: |
+          command=()
+
+          value="${{ inputs.test-mode }}"
+          case "$value" in
+            unit)
+              command+=(node --test)
+              ;;
+            script)
+              command+=(npm run test)
+              ;;
+            all)
+              command+=(npm run test:all)
+              ;;
+            *)
+              echo "::error::Invalid test-mode: ${value}."
+              echo "One of falsy, none, unit, script or all."
+              exit 1
+              ;;
+          esac
+
+          "${command[@]}"
+
+      - name: Lint
+        if: inputs.lint == true
+        run: npm run lint

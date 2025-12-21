@@ -1,0 +1,59 @@
+---
+name: CI (Bun and Node.js LTS)
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        type: string
+        default: .
+      build:
+        required: false
+        type: boolean
+        default: false
+      bun-test-mode:
+        required: false
+        type: string
+        default: unit
+      node-test-mode:
+        required: false
+        type: string
+        default: all
+      upload-codecov:
+        required: false
+        type: boolean
+        description: only bun
+        default: true
+      lint:
+        required: false
+        type: boolean
+        description: only bun
+        default: true
+
+jobs:
+  node-ci:
+    strategy:
+      matrix:
+        version:
+          - 20
+          - 22
+          - 24
+    uses: ./.github/workflows/node-ci.yml
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      node-version: ${{ matrix.version }}
+      test-mode: ${{ inputs.node-test-mode }}
+      build: ${{ inputs.build }}
+      lint: false
+  bun-ci:
+    if: >
+      github.event_name != 'pull_request'
+      || github.event.pull_request.draft == false
+    uses: ./.github/workflows/bun-ci.yml
+    with:
+      working-directory: ${{ inputs.working-directory }}
+      test-mode: ${{ inputs.bun-test-mode }}
+      build: ${{ inputs.build }}
+      lint: ${{ inputs.lint }}
+      upload-codecov: ${{ inputs.upload-codecov }}

@@ -1,0 +1,108 @@
+---
+name: CI (Bun)
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        required: false
+        type: string
+        description: Bun version to use
+        default: latest
+      working-directory:
+        required: false
+        type: string
+        default: .
+      build:
+        required: false
+        type: boolean
+        description: Run `bun run build` before tests
+        default: false
+      test-mode:
+        required: false
+        type: string
+        description: |
+          Test command to run
+          - none/false: Do not run tests
+          - unit: `bun test`
+          - script: `bun run test`
+          - all: `bun run test:all`
+        default: none
+      upload-codecov:
+        required: false
+        type: boolean
+        description: Generate a coverage report when tests are run and upload it to Codecov
+        default: false
+      lint:
+        required: false
+        type: boolean
+        description: run `bun run lint` after tests
+        default: false
+
+jobs:
+  tests-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun ${{ inputs.bun-version }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ -f "bun.lock" ]; then
+            bun ci
+          else
+            bun install
+          fi
+
+      - name: Build
+        if: inputs.build == true
+        run: bun run build
+
+      - name: Run tests
+        if: inputs.test-mode != false && inputs.test-mode != 'none'
+        run: |
+          command=(bun)
+
+          value="${{ inputs.test-mode }}"
+          case "$value" in
+            unit)
+              command+=(test)
+              ;;
+            script)
+              command+=(run test)
+              ;;
+            all)
+              command+=(run test:all)
+              ;;
+            *)
+              echo "::error::Invalid test-mode: ${value}."
+              echo "One of falsy, none, unit, script or all."
+              exit 1
+              ;;
+          esac
+
+          if [ "${{ inputs.upload-codecov }}" = true ]; then
+            command+=(--coverage --coverage-reporter=lcov)
+          fi
+
+          "${command[@]}"
+
+      - name: Upload coverage to Codecov
+        if: inputs.upload-codecov == true
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          use_oidc: true
+
+      - name: Lint
+        if: inputs.lint == true
+        run: bun run lint
