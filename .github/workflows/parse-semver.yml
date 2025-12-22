@@ -1,0 +1,96 @@
+---
+name: Parse SemVer
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+      invalid_semver_policy:
+        required: false
+        type: string
+        default: fail
+
+    outputs:
+      tag_name:
+        description: User input value
+        value: ${{ fromJSON(jobs.parser.outputs.raw).tag_name }}
+      is_valid_semver:
+        description: full_version is valid semver
+        value: ${{ fromJSON(jobs.parser.outputs.raw).is_valid_semver }}
+      full_version:
+        description: if v1.2.3-beta.4+build.5 -> 1.2.3-beta.4+build.5
+        value: ${{ fromJSON(jobs.parser.outputs.raw).full_version }}
+      core_version:
+        description: if v1.2.3-beta.4+build.5 -> 1.2.3
+        value: ${{ fromJSON(jobs.parser.outputs.raw).core_version }}
+      prerelease_label:
+        description: if 1.2.3-beta.4+build.5 -> beta.4
+        value: ${{ fromJSON(jobs.parser.outputs.raw).prerelease_label }}
+      metadata:
+        description: if 1.2.3-beta.4+build.5 -> build.5
+        value: ${{ fromJSON(jobs.parser.outputs.raw).metadata }}
+      publish_tag:
+        description: if 1.2.3-beta.4+build.5 -> beta, default value is latest
+        value: ${{ fromJSON(jobs.parser.outputs.raw).publish_tag }}
+
+jobs:
+  parser:
+    runs-on: ubuntu-latest
+    outputs:
+      raw: ${{ toJSON(steps.parser.outputs) }}
+    steps:
+      - id: parser
+        run: |
+          policy="${{ inputs.invalid_semver_policy }}"
+          case "$policy" in
+            pass|fail)
+              ;;
+            *)
+              echo "::warning::Invalid invalid_semver_policy: ${policy}. Falling back to 'fail'. Allowed values: pass, fail."
+              policy="fail"
+              ;;
+          esac
+
+          is_valid_semver=false
+          tag_name="${{ inputs.tag_name }}"
+          full_version="${tag_name#*v}"
+          core_version=
+          prerelease_label=
+          metadata=
+          publish_tag=
+
+          semver_regex="^([0-9]+)\.([0-9]+)\.([0-9]+)"
+          prerelease_regex="-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)"
+          metadata_regex="\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)"
+
+          if [[ "$full_version" =~ $semver_regex($prerelease_regex)?($metadata_regex)?$ ]]; then
+            is_valid_semver=true
+            core_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+            prerelease_label="${BASH_REMATCH[5]:-}"
+            metadata="${BASH_REMATCH[8]:-}"
+
+            if [[ -z "$prerelease_label" ]]; then
+              publish_tag="latest"
+            else
+              publish_tag="${prerelease_label%%.*}"
+              if [[ "$publish_tag" =~ ^[0-9]+$ ]]; then
+                publish_tag="prerelease-$publish_tag"
+              fi
+            fi
+          elif [ "$policy" != "pass" ]; then
+            echo "::error::Invalid version format: $tag_name"
+            exit 1
+          fi
+
+          echo "Result:"
+          cat << EOF | tee -a "$GITHUB_OUTPUT" | sed "s/=/ = /"
+          tag_name=$tag_name
+          is_valid_semver=$is_valid_semver
+          full_version=$full_version
+          core_version=$core_version
+          prerelease_label=$prerelease_label
+          metadata=$metadata
+          publish_tag=$publish_tag
+          EOF
