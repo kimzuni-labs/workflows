@@ -1,0 +1,84 @@
+---
+name: Publish to npm (Bun)
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+      working-directory:
+        required: false
+        type: string
+        default: .
+      build:
+        required: false
+        type: boolean
+        description: Run `bun run build` before publish
+        default: true
+      registry-url:
+        required: false
+        type: string
+        default: "https://registry.npmjs.org"
+      access:
+        required: false
+        type: string
+        description: Use only scope package
+        default: public
+      provenance:
+        required: false
+        type: boolean
+        description: Don't need to set when enable the Trusted Publisher
+        default: false
+
+    outputs:
+      parse-semver:
+        value: ${{ toJSON(jobs.parse-semver.outputs) }}
+
+jobs:
+  parse-semver:
+    uses: ./.github/workflows/parse-semver.yml
+    with:
+      tag_name: ${{ inputs.tag_name }}
+      invalid_semver_policy: pass
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    needs:
+      - parse-semver
+    if: fromJSON(needs.parse-semver.outputs.is_valid_semver)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          registry-url: ${{ inputs.registry-url }}
+
+      - name: Setup Node.js
+        if: inputs.provenance == true
+        uses: actions/setup-node@v6
+        with:
+          node-version: latest
+          registry-url: ${{ inputs.registry-url }}
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Build project
+        if: inputs.build != false
+        working-directory: ${{ inputs.working-directory }}
+        run: bun run build
+
+      - name: Publish to npm
+        if: inputs.provenance == true
+        working-directory: ${{ inputs.working-directory }}
+        run: npm publish --provenance --access ${{ inputs.access }} --tag "${{ needs.parse-semver.outputs.publish_tag }}"
+
+      - name: Publish to npm using Bun
+        if: inputs.provenance != true
+        working-directory: ${{ inputs.working-directory }}
+        run: bun publish --access ${{ inputs.access }} --tag "${{ needs.parse-semver.outputs.publish_tag }}"
