@@ -31,7 +31,7 @@ jobs:
       raw: ${{ toJSON(steps.release-please.outputs) }}
     steps:
       - name: Release Please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         id: release-please
         with:
           config-file: ${{ inputs.config-file }}
