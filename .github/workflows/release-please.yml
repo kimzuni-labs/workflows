@@ -46,7 +46,7 @@ jobs:
       && fromJSON(fromJSON(needs.release-please.outputs.raw).releases_created)
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Update Release Notes
         env:
