@@ -12,8 +12,13 @@ on:
       build:
         required: false
         type: boolean
-        description: Run `bun run build` before tests
+        description: Run `bun run build` or `bun run build-script` before tests
         default: false
+      build-script:
+        required: false
+        type: string
+        description: Run `bun run build-script`, if not set, Run `bun run build`
+        default: ""
       test:
         required: false
         type: boolean
@@ -37,8 +42,13 @@ on:
       lint:
         required: false
         type: boolean
-        description: run `bun run lint` after tests
+        description: Run `bun run lint` or `bun run lint-script` after tests
         default: false
+      lint-script:
+        required: false
+        type: string
+        description: Run `bun run lint-script`, if not set, Run `bun run lint`
+        default: ""
 
 jobs:
   tests-and-lint:
@@ -62,7 +72,13 @@ jobs:
 
       - name: Build
         if: inputs.build == true
-        run: bun run build
+        run: |
+          script="${{ inputs.build-script }}"
+          if [ -n "$script" ]; then
+            bun run "$script"
+          else
+            bun run build
+          fi
 
       - name: Run tests
         if: inputs.test == true
@@ -83,4 +99,10 @@ jobs:
 
       - name: Lint
         if: inputs.lint == true
-        run: bun run lint
+        run: |
+          script="${{ inputs.lint-script }}"
+          if [ -n "$script" ]; then
+            bun run "$script"
+          else
+            bun run lint
+          fi
